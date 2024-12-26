@@ -14,10 +14,18 @@ fi
 # Get the directory where the script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+# Get the actual user who ran sudo (not root)
+ACTUAL_USER=${SUDO_USER:-$USER}
+ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
+
 # Prompt for base directory
 DEFAULT_BASE_DIR="/var/lib/pifileserver"
 read -p "Enter base directory for file storage [$DEFAULT_BASE_DIR]: " BASE_DIR
 BASE_DIR=${BASE_DIR:-$DEFAULT_BASE_DIR}
+
+# Expand ~ and $HOME to actual home directory
+BASE_DIR="${BASE_DIR/#\~/$ACTUAL_HOME}"
+BASE_DIR="${BASE_DIR/\$HOME/$ACTUAL_HOME}"
 
 # Convert to absolute path and remove any trailing slashes
 BASE_DIR=$(realpath -m "$BASE_DIR")
