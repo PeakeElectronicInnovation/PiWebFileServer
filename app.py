@@ -356,6 +356,10 @@ def bulk_download():
 def serve_image(filename):
     return send_from_directory('images', filename)
 
+@app.route('/favicon.ico')
+def serve_favicon():
+    return send_from_directory('.', 'favicon.ico')
+
 if __name__ == '__main__':
     ssl_context = None
     if os.path.exists(config.SSL_CERT) and os.path.exists(config.SSL_KEY):
