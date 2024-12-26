@@ -12,6 +12,8 @@ import ssl
 from werkzeug.middleware.proxy_fix import ProxyFix
 import mimetypes
 import json
+import zipfile
+import io
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -34,7 +36,22 @@ def before_request():
         return redirect(url, code=301)
 
 def get_system_stats():
-    # Get system information
+    def get_ip_address():
+        try:
+            # Get all network interfaces
+            interfaces = psutil.net_if_addrs()
+            for interface, addrs in interfaces.items():
+                # Skip loopback and virtual interfaces
+                if interface.startswith(('lo', 'veth', 'docker', 'br-')):
+                    continue
+                for addr in addrs:
+                    # Look for IPv4 address
+                    if addr.family == socket.AF_INET:
+                        return addr.address
+        except:
+            pass
+        return "127.0.0.1"  # Fallback to localhost if no other IP found
+
     cpu_percent = psutil.cpu_percent(interval=1)
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage(config.BASE_DIR)
@@ -43,7 +60,7 @@ def get_system_stats():
     
     return {
         'hostname': socket.gethostname(),
-        'ip_address': socket.gethostbyname(socket.gethostname()),
+        'ip_address': get_ip_address(),
         'uptime': str(uptime).split('.')[0],  # Remove microseconds
         'cpu_usage': f"{cpu_percent}%",
         'ram_total': f"{memory.total / (1024**3):.1f} GB",
