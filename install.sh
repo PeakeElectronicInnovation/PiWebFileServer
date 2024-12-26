@@ -145,9 +145,10 @@ After=network.target
 
 [Service]
 Type=simple
+Environment="PATH=$INSTALL_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/venv/bin/python app.py
+ExecStart=$INSTALL_DIR/venv/bin/python $INSTALL_DIR/app.py
 Restart=always
 RestartSec=3
 
@@ -166,13 +167,30 @@ EOL
     chmod 644 "$SERVICE_FILE"
 
     # Enable lingering for the user (allows user services to run without login)
+    echo "Enabling user service capabilities..."
     loginctl enable-linger "$ACTUAL_USER"
+
+    # Export XDG runtime directory
+    export XDG_RUNTIME_DIR="/run/user/$(id -u $ACTUAL_USER)"
 
     # Reload systemd and start service (as the actual user)
     echo "Starting service..."
-    systemctl --user --machine="$ACTUAL_USER@.host" daemon-reload
-    systemctl --user --machine="$ACTUAL_USER@.host" enable pifileserver
-    systemctl --user --machine="$ACTUAL_USER@.host" start pifileserver
+    # Create a temporary script to run the systemd commands as the actual user
+    TEMP_SCRIPT=$(mktemp)
+    cat > "$TEMP_SCRIPT" << 'EOF'
+#!/bin/bash
+systemctl --user daemon-reload
+sleep 2
+systemctl --user enable pifileserver
+sleep 2
+systemctl --user start pifileserver
+sleep 2
+systemctl --user status pifileserver
+EOF
+
+    chmod +x "$TEMP_SCRIPT"
+    sudo -u "$ACTUAL_USER" bash "$TEMP_SCRIPT"
+    rm "$TEMP_SCRIPT"
 
     echo "Installation complete!"
     echo "The Pi File Server is now running at http://localhost:8000"
@@ -181,6 +199,14 @@ EOL
     echo "To check the service status: systemctl --user status pifileserver"
     echo "To view logs: journalctl --user -u pifileserver"
     echo "Configuration file: $ENV_FILE"
+
+    # Check if service is actually running
+    if ! sudo -u "$ACTUAL_USER" systemctl --user is-active pifileserver >/dev/null 2>&1; then
+        echo ""
+        echo "WARNING: Service may not have started properly."
+        echo "Please check the status with: systemctl --user status pifileserver"
+        echo "And view logs with: journalctl --user -u pifileserver"
+    fi
 }
 
 # Main script
