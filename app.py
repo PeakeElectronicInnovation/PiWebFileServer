@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file, abort
+from flask import Flask, render_template, request, jsonify, send_file, abort, redirect, url_for
 from werkzeug.utils import secure_filename
 import os
 from pathlib import Path
@@ -8,6 +8,8 @@ import time
 from datetime import datetime
 import config
 import logging
+import ssl
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -15,11 +17,19 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 
 # Log configuration on startup
 logger.info(f"Starting Pi File Server")
 logger.info(f"Base Directory: {config.BASE_DIR}")
 logger.info(f"Working Directory: {os.getcwd()}")
+
+# Redirect HTTP to HTTPS
+@app.before_request
+def before_request():
+    if not request.is_secure:
+        url = request.url.replace('http://', 'https://', 1)
+        return redirect(url, code=301)
 
 def get_system_stats():
     # Get system information
@@ -152,4 +162,16 @@ def download_file(filepath):
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host=config.HOST, port=config.PORT, debug=True)
+    ssl_context = None
+    if os.path.exists(config.SSL_CERT) and os.path.exists(config.SSL_KEY):
+        ssl_context = (config.SSL_CERT, config.SSL_KEY)
+        logger.info(f"Using SSL certificates from {config.SSL_DIR}")
+    else:
+        logger.warning("SSL certificates not found, running in HTTP mode")
+    
+    app.run(
+        host=config.HOST,
+        port=config.PORT,
+        ssl_context=ssl_context,
+        debug=True
+    )

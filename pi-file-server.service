@@ -11,15 +11,22 @@ Environment="PATH=/home/admin/PiWebFileServer/venv/bin"
 Environment="PI_FILE_SERVER_BASE_DIR=/home/admin/Documents"
 Environment="FLASK_ENV=development"
 Environment="FLASK_DEBUG=1"
+
+# Allow binding to port 443
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Ensure directories exist
+PermissionsStartOnly=true
+ExecStartPre=/bin/mkdir -p /home/admin/Documents
+ExecStartPre=/bin/mkdir -p /home/admin/PiWebFileServer/ssl
+ExecStartPre=/bin/chown -R admin:admin /home/admin/Documents
+ExecStartPre=/bin/chown -R admin:admin /home/admin/PiWebFileServer/ssl
+ExecStartPre=/bin/chmod 755 /home/admin/Documents
+ExecStartPre=/bin/chmod 700 /home/admin/PiWebFileServer/ssl
+
 ExecStart=/home/admin/PiWebFileServer/venv/bin/python app.py
 Restart=always
 RestartSec=3
-
-# Ensure the service has access to the directories
-PermissionsStartOnly=true
-ExecStartPre=/bin/mkdir -p /home/admin/Documents
-ExecStartPre=/bin/chown admin:admin /home/admin/Documents
-ExecStartPre=/bin/chmod 755 /home/admin/Documents
 
 [Install]
 WantedBy=multi-user.target
