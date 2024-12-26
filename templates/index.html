@@ -240,7 +240,7 @@
 
         function showMoveModal() {
             const targetDir = document.getElementById('targetDir');
-            targetDir.innerHTML = '<option value="">/</option>';
+            targetDir.innerHTML = '<option value="">Home Directory</option>';
             directories.forEach(dir => {
                 const option = document.createElement('option');
                 option.value = dir.path;

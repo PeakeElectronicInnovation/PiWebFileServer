@@ -256,12 +256,14 @@ def bulk_move():
     target = request.json.get('target', '')
     if not paths:
         return jsonify({'error': 'No paths specified'}), 400
-    if not target:
-        return jsonify({'error': 'No target directory specified'}), 400
         
     try:
-        target_dir = Path(config.BASE_DIR) / target
+        # Handle root directory case
+        target_dir = Path(config.BASE_DIR)
+        if target:  # Only append target path if it's not empty
+            target_dir = target_dir / target
         target_dir = target_dir.resolve()
+        
         if not str(target_dir).startswith(config.BASE_DIR):
             return jsonify({'error': 'Access denied: Target is outside base directory'}), 403
         if not target_dir.is_dir():
