@@ -129,6 +129,72 @@ The server will:
 
 Note: When using a self-signed certificate, your browser will show a security warning. This is normal and you can proceed by accepting the certificate.
 
+## Running on Port 80/443 Without Sudo
+
+There are two recommended ways to run the server on privileged ports (80/443) without sudo:
+
+### Option 1: Port Forwarding (Recommended)
+
+Use `iptables` to forward traffic from port 80 to a non-privileged port (e.g., 8000):
+
+```bash
+# Allow the server to bind to port 8000
+python app.py &
+
+# Forward port 80 to 8000 (requires sudo once)
+sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8000
+sudo iptables -t nat -A OUTPUT -p tcp --dport 80 -j REDIRECT --to-port 8000
+
+# Make the rules persistent (Debian/Ubuntu)
+sudo apt-get install iptables-persistent
+sudo netfilter-persistent save
+```
+
+### Option 2: Capability Setting
+
+Grant the Python binary the capability to bind to privileged ports:
+
+```bash
+# Install libcap2-bin if not already installed
+sudo apt-get install libcap2-bin
+
+# Grant capability to Python
+sudo setcap 'cap_net_bind_service=+ep' $(readlink -f $(which python3))
+
+# Now you can run directly on port 80
+export PI_FILE_SERVER_PORT=80
+python app.py
+```
+
+Note: The capability setting method:
+- Only needs to be done once
+- Applies to all Python programs run by your user
+- Might need to be reapplied after Python updates
+- Is more secure than running the entire application as root
+
+### Option 3: Reverse Proxy (Production)
+
+For production environments, it's recommended to:
+1. Run the application on a high port (e.g., 8000)
+2. Use Nginx or Apache as a reverse proxy
+3. Have the reverse proxy handle SSL termination
+
+Example Nginx configuration:
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
 ## Running as a Service
 
 To run the Pi File Server as a systemd service that starts automatically on boot:
