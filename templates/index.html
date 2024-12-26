@@ -87,12 +87,13 @@
         .logo {
             height: 60px;
             width: auto;
-            margin-bottom: 0.75rem;
+            margin-right: 1rem;
         }
         .header {
-            text-align: center;
-            padding: 1.5rem 0;
-            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            padding: 1rem 0;
+            margin-bottom: 1.5rem;
             border-bottom: 1px solid #dee2e6;
             background: linear-gradient(to bottom, #f8f9fa, white);
         }
@@ -121,6 +122,12 @@
         .drop-zone:hover {
             border-color: #0d6efd;
         }
+        .bulk-actions {
+            display: inline-block;
+        }
+        .bulk-actions button {
+            transition: opacity 0.2s ease-in-out;
+        }
     </style>
 </head>
 <body>
@@ -143,13 +150,13 @@
                         <i class="bi bi-folder-plus"></i> New Directory
                     </button>
                     <div class="bulk-actions">
-                        <button class="btn btn-danger" onclick="bulkDelete()">
+                        <button class="btn btn-danger" onclick="bulkDelete()" id="deleteBtn" disabled>
                             <i class="bi bi-trash"></i> Delete Selected
                         </button>
-                        <button class="btn btn-primary" onclick="bulkDownload()">
+                        <button class="btn btn-primary" onclick="bulkDownload()" id="downloadBtn" disabled>
                             <i class="bi bi-download"></i> Download Selected
                         </button>
-                        <button class="btn btn-secondary" onclick="showMoveModal()">
+                        <button class="btn btn-secondary" onclick="showMoveModal()" id="moveBtn" disabled>
                             <i class="bi bi-folder-symlink"></i> Move Selected
                         </button>
                     </div>
@@ -306,7 +313,9 @@
 
         function updateBulkActions() {
             const hasSelection = document.querySelectorAll('.file-checkbox:checked').length > 0;
-            bulkActions.classList.toggle('show', hasSelection);
+            document.getElementById('deleteBtn').disabled = !hasSelection;
+            document.getElementById('downloadBtn').disabled = !hasSelection;
+            document.getElementById('moveBtn').disabled = !hasSelection;
         }
 
         async function bulkDelete() {
@@ -480,17 +489,22 @@
 
         function updateBreadcrumb(path) {
             const breadcrumb = document.getElementById('path-breadcrumb');
-            breadcrumb.innerHTML = '<li class="breadcrumb-item" data-path="">Home</li>';
+            breadcrumb.innerHTML = '<li class="breadcrumb-item"><a href="#" onclick="loadFiles(\'\'); return false;">Home</a></li>';
             
             if (path) {
                 const parts = path.split('/');
                 let currentPath = '';
                 parts.forEach((part, index) => {
                     currentPath += (index === 0 ? '' : '/') + part;
-                    breadcrumb.innerHTML += `
-                        <li class="breadcrumb-item ${index === parts.length - 1 ? 'active' : ''}" 
-                            data-path="${currentPath}">${part}</li>
-                    `;
+                    if (index === parts.length - 1) {
+                        breadcrumb.innerHTML += `<li class="breadcrumb-item active">${part}</li>`;
+                    } else {
+                        breadcrumb.innerHTML += `
+                            <li class="breadcrumb-item">
+                                <a href="#" onclick="loadFiles('${currentPath}'); return false;">${part}</a>
+                            </li>
+                        `;
+                    }
                 });
             }
 
@@ -505,25 +519,50 @@
 
         async function loadFiles(path = '') {
             showLoading();
+            currentPath = path;
+            
             try {
                 const response = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
                 const data = await response.json();
                 
                 if (!response.ok) throw new Error(data.error);
                 
-                currentPath = data.current_path;
-                updateBreadcrumb(currentPath);
+                // Update breadcrumb
+                const breadcrumb = document.getElementById('path-breadcrumb');
+                breadcrumb.innerHTML = '<li class="breadcrumb-item"><a href="#" onclick="loadFiles(\'\'); return false;">Home</a></li>';
                 
+                if (data.current_path) {
+                    const parts = data.current_path.split('/');
+                    let currentPath = '';
+                    parts.forEach((part, index) => {
+                        currentPath += (index === 0 ? '' : '/') + part;
+                        if (index === parts.length - 1) {
+                            breadcrumb.innerHTML += `<li class="breadcrumb-item active">${part}</li>`;
+                        } else {
+                            breadcrumb.innerHTML += `
+                                <li class="breadcrumb-item">
+                                    <a href="#" onclick="loadFiles('${currentPath}'); return false;">${part}</a>
+                                </li>
+                            `;
+                        }
+                    });
+                }
+                
+                // Clear file list
                 const fileList = document.getElementById('file-list');
                 fileList.innerHTML = '';
+                
+                // Reset select all checkbox
+                document.getElementById('select-all').checked = false;
+                updateBulkActions();
+                
+                // Store directories for move modal
+                directories = data.files.filter(f => f.is_dir);
                 
                 data.files.sort((a, b) => {
                     if (a.is_dir === b.is_dir) return a.name.localeCompare(b.name);
                     return b.is_dir - a.is_dir;
                 });
-                
-                // Store directories for move modal
-                directories = data.files.filter(f => f.is_dir);
                 
                 data.files.forEach(file => {
                     const tr = document.createElement('tr');
@@ -536,8 +575,8 @@
                             
                     tr.innerHTML = `
                         <td>
-                            <input type="checkbox" class="form-check-input file-checkbox" 
-                                   data-path="${file.path}" onclick="updateBulkActions()">
+                            <input type="checkbox" class="form-check-input file-checkbox" onchange="updateBulkActions()" 
+                                   data-path="${file.path}" data-is-dir="${file.is_dir}">
                         </td>
                         <td>
                             <i class="bi ${file.is_dir ? 'bi-folder' : 'bi-file'} me-2"></i>
