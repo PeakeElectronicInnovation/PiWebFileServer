@@ -13,17 +13,30 @@ A modern web-based file server for Raspberry Pi that allows you to browse, uploa
 
 ## Installation
 
-1. Install the required dependencies:
+1. Install Python virtual environment package (on Raspberry Pi OS):
+```bash
+sudo apt install python3-venv
+```
+
+2. Create and activate a virtual environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Linux/Raspberry Pi
+# or
+.\venv\Scripts\activate  # On Windows
+```
+
+3. Install the required dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Run the application:
+4. Run the application:
 ```bash
 python app.py
 ```
 
-3. Access the web interface by opening a browser and navigating to:
+5. Access the web interface by opening a browser and navigating to:
 ```
 http://[your-pi-ip]:5000
 ```
