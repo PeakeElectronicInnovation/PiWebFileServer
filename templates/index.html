@@ -72,16 +72,39 @@
             top: 1rem;
         }
         .main-content {
-            min-height: calc(100vh - 2rem);
+            min-height: calc(100vh - 120px); /* Account for footer */
         }
-        .bulk-actions {
-            display: none;
+        .footer {
+            height: 60px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
         }
-        .bulk-actions.show {
-            display: block;
+        .logo {
+            height: 40px;
+            width: auto;
         }
-        .checkbox-column {
-            width: 40px;
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .breadcrumb {
+            margin-bottom: 0;
+        }
+        .action-buttons {
+            margin: 1rem 0;
+        }
+        .drop-zone {
+            border: 2px dashed #dee2e6;
+            border-radius: 0.5rem;
+            padding: 2rem;
+            text-align: center;
+            background-color: #f8f9fa;
+            transition: border-color 0.3s;
+        }
+        .drop-zone:hover {
+            border-color: #0d6efd;
         }
     </style>
 </head>
@@ -89,15 +112,18 @@
     <div class="container-fluid py-4">
         <div class="row main-content">
             <div class="col-md-9">
-                <h1 class="mb-4">Pi File Server</h1>
+                <div class="header">
+                    <img src="/images/PEI Logo (Original).svg" alt="Peake Electronic Innovation" class="logo">
+                    <h1 class="mb-0">Pi File Server</h1>
+                </div>
                 
-                <nav aria-label="breadcrumb" class="mb-3">
+                <nav aria-label="breadcrumb">
                     <ol class="breadcrumb" id="path-breadcrumb">
                         <li class="breadcrumb-item active" data-path="">Home</li>
                     </ol>
                 </nav>
 
-                <div class="mb-3 d-flex gap-2">
+                <div class="action-buttons d-flex gap-2">
                     <button class="btn btn-primary" onclick="showNewDirModal()">
                         <i class="bi bi-folder-plus"></i> New Directory
                     </button>
@@ -603,4 +629,13 @@
         setInterval(updateSystemStats, 5000);
     </script>
 </body>
+<footer class="footer">
+    <div class="container-fluid">
+        <div class="row h-100 align-items-center">
+            <div class="col-12 text-center text-muted">
+                2024 Peake Electronic Innovation. All rights reserved.
+            </div>
+        </div>
+    </div>
+</footer>
 </html>

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file, abort, redirect, url_for
+from flask import Flask, render_template, request, jsonify, send_file, abort, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
 import os
 from pathlib import Path
@@ -17,9 +17,9 @@ import json
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='')
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Log configuration on startup
 logger.info(f"Starting Pi File Server")
@@ -351,6 +351,10 @@ def bulk_download():
                 pass
         import threading
         threading.Timer(60, cleanup).start()
+
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    return send_from_directory('images', filename)
 
 if __name__ == '__main__':
     ssl_context = None
