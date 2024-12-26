@@ -11,6 +11,7 @@ import logging
 import ssl
 from werkzeug.middleware.proxy_fix import ProxyFix
 import mimetypes
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -298,7 +299,16 @@ def bulk_move():
 
 @app.route('/api/bulk-download', methods=['POST'])
 def bulk_download():
-    paths = request.json.get('paths', [])
+    # Handle both JSON and form data
+    if request.is_json:
+        paths = request.json.get('paths', [])
+    else:
+        paths = request.form.get('paths', '')
+        try:
+            paths = json.loads(paths)
+        except:
+            paths = []
+            
     if not paths:
         return jsonify({'error': 'No paths specified'}), 400
         
@@ -319,8 +329,11 @@ def bulk_download():
                         continue
                     if not file_path.exists() or not file_path.is_file():
                         continue
-                    zipf.write(file_path, file_path.name)
-                except Exception:
+                    # Store files with relative paths in the zip
+                    rel_path = file_path.relative_to(Path(config.BASE_DIR))
+                    zipf.write(file_path, str(rel_path))
+                except Exception as e:
+                    app.logger.error(f"Error adding file to zip: {e}")
                     continue
                     
         return send_file(

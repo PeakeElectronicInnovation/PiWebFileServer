@@ -298,23 +298,37 @@
             }
         }
 
-        function bulkDownload() {
+        async function bulkDownload() {
             const paths = getSelectedPaths();
             if (!paths.length) return;
             
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/api/bulk-download';
-            
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'paths';
-            input.value = JSON.stringify(paths);
-            
-            form.appendChild(input);
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
+            try {
+                const response = await fetch('/api/bulk-download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ paths })
+                });
+                
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Download failed');
+                }
+                
+                // Create a blob from the response and trigger download
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'download.zip';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (error) {
+                alert('Error downloading files: ' + error.message);
+            }
         }
 
         async function moveSelected() {
