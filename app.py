@@ -21,19 +21,14 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_url_path='')
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
+
+# Add proxy fix for proper IP handling
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Log configuration on startup
 logger.info(f"Starting Pi File Server")
 logger.info(f"Base Directory: {config.BASE_DIR}")
 logger.info(f"Working Directory: {os.getcwd()}")
-
-# Redirect HTTP to HTTPS
-@app.before_request
-def before_request():
-    if not request.is_secure:
-        url = request.url.replace('http://', 'https://', 1)
-        return redirect(url, code=301)
 
 def get_system_stats():
     def get_ip_address():
@@ -381,13 +376,8 @@ if __name__ == '__main__':
     ssl_context = None
     if os.path.exists(config.SSL_CERT) and os.path.exists(config.SSL_KEY):
         ssl_context = (config.SSL_CERT, config.SSL_KEY)
-        logger.info(f"Using SSL certificates from {config.SSL_DIR}")
+        print(f"SSL certificates found, running with HTTPS on port {config.PORT}")
     else:
-        logger.warning("SSL certificates not found, running in HTTP mode")
+        print(f"SSL certificates not found, running without HTTPS on port {config.PORT}")
     
-    app.run(
-        host=config.HOST,
-        port=config.PORT,
-        ssl_context=ssl_context,
-        debug=True
-    )
+    app.run(host='0.0.0.0', port=config.PORT, ssl_context=ssl_context, threaded=True)

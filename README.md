@@ -1,15 +1,26 @@
 # Pi Web File Server
 
-A modern web-based file server for Raspberry Pi that allows you to browse, upload, download, and delete files through a clean web interface.
+A modern web-based file server for Raspberry Pi that allows you to browse, upload, download, and manage files through a clean web interface.
 
 ## Features
 
-- Modern, responsive web interface
+- Modern, responsive web interface with Peake Electronic Innovation branding
+- Real-time system information display (CPU, Memory, Disk usage)
 - Drag and drop file uploads
-- File and directory browsing
-- File downloads
-- File and empty directory deletion
+- File and directory operations:
+  - Browse files and directories
+  - Create new directories
+  - Upload files (up to 5GB)
+  - Download files
+  - Delete files and directories
+  - Move files and directories
+- Bulk actions:
+  - Select multiple items
+  - Delete selected
+  - Download selected (as zip)
+  - Move selected
 - Breadcrumb navigation
+- Optional HTTPS support
 
 ## Installation
 
@@ -38,41 +49,44 @@ python app.py
 
 5. Access the web interface by opening a browser and navigating to:
 ```
-http://[your-pi-ip]:5000
+http://[your-pi-ip]
 ```
 
-## SSL Configuration
+## Configuration
 
-To enable HTTPS with a self-signed certificate:
+The server can be configured using environment variables:
 
-1. Create SSL directory and generate self-signed certificate:
+- `PI_FILE_SERVER_BASE_DIR`: Base directory for file operations (default: user's home directory)
+- `PI_FILE_SERVER_PORT`: Port to run the server on (default: 443)
+- `PI_FILE_SERVER_DOMAIN`: Optional domain name
+- `PI_FILE_SERVER_SSL_CERT`: Path to SSL certificate (optional)
+- `PI_FILE_SERVER_SSL_KEY`: Path to SSL private key (optional)
+
+## SSL Configuration (Optional)
+
+To enable HTTPS:
+
+1. Generate a self-signed certificate:
 ```bash
-# Create SSL directory
-sudo mkdir -p /home/admin/PiWebFileServer/ssl
-
 # Generate self-signed certificate
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /home/admin/PiWebFileServer/ssl/privkey.pem \
-    -out /home/admin/PiWebFileServer/ssl/fullchain.pem \
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout cert/key.pem \
+    -out cert/cert.pem \
     -subj "/CN=mini-server.lan"
-
-# Set correct permissions
-sudo chown -R admin:admin /home/admin/PiWebFileServer/ssl
-sudo chmod 700 /home/admin/PiWebFileServer/ssl
-sudo chmod 600 /home/admin/PiWebFileServer/ssl/*.pem
 ```
 
-2. Restart the service:
+2. Set the environment variables to point to your certificates:
 ```bash
-sudo systemctl restart pi-file-server
+export PI_FILE_SERVER_SSL_CERT=cert/cert.pem
+export PI_FILE_SERVER_SSL_KEY=cert/key.pem
 ```
 
-The server will now:
-- Run on port 443 (standard HTTPS port)
-- Automatically redirect HTTP to HTTPS
-- Use self-signed SSL certificate
+The server will:
+- Run with HTTPS if certificates are found
+- Run with HTTP if no certificates are present
+- Use port 443 by default (can be changed via `PI_FILE_SERVER_PORT`)
 
-Note: When accessing the server for the first time, your browser will show a security warning because the certificate is self-signed. This is normal and you can proceed by accepting the certificate. The connection will still be encrypted, just not verified by a trusted certificate authority.
+Note: When using a self-signed certificate, your browser will show a security warning. This is normal and you can proceed by accepting the certificate.
 
 ## Running as a Service
 
@@ -119,14 +133,16 @@ The service will now:
 
 ## Security Notes
 
-- By default, the server runs on port 5000 and listens on all interfaces (0.0.0.0)
-- The server is configured to start in the user's home directory
-- Maximum file upload size is set to 16MB (can be adjusted in app.py)
-- It's recommended to run this behind a reverse proxy with HTTPS in production
+- The server listens on all interfaces (0.0.0.0)
+- HTTPS is optional but recommended for production use
+- Maximum file upload size is 5GB (configurable)
+- The server is configured to start in the user's home directory by default
+- All file operations are restricted to the configured base directory
 
 ## Requirements
 
 - Python 3.6+
 - Flask
 - Werkzeug
+- psutil
 - pathlib
