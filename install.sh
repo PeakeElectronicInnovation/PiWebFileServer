@@ -13,14 +13,13 @@ fi
 
 # Get the directory where the script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-cd "$SCRIPT_DIR"
 
 # Prompt for base directory
 DEFAULT_BASE_DIR="/var/lib/pifileserver"
 read -p "Enter base directory for file storage [$DEFAULT_BASE_DIR]: " BASE_DIR
 BASE_DIR=${BASE_DIR:-$DEFAULT_BASE_DIR}
 
-# Expand the path to absolute
+# Convert to absolute path and remove any trailing slashes
 BASE_DIR=$(realpath -m "$BASE_DIR")
 
 # Confirm directory
@@ -43,6 +42,13 @@ if ! id -u pifileserver &>/dev/null; then
     useradd -r -s /bin/false pifileserver
 fi
 
+# Create and configure installation directory
+echo "Setting up installation directory..."
+INSTALL_DIR="/opt/pifileserver"
+mkdir -p "$INSTALL_DIR"
+cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+cd "$INSTALL_DIR"
+
 # Create virtual environment
 echo "Setting up Python virtual environment..."
 python3 -m venv venv
@@ -51,11 +57,11 @@ source venv/bin/activate
 # Install Python dependencies
 echo "Installing Python dependencies..."
 pip install -r requirements.txt
+deactivate
 
 # Create base directory if it doesn't exist
-echo "Setting up directories..."
+echo "Setting up storage directory..."
 mkdir -p "$BASE_DIR"
-chown pifileserver:pifileserver "$BASE_DIR"
 
 # Create environment file
 echo "Creating environment configuration..."
@@ -80,8 +86,8 @@ Type=simple
 User=pifileserver
 Group=pifileserver
 EnvironmentFile=/etc/pifileserver.env
-WorkingDirectory=$SCRIPT_DIR
-ExecStart=$SCRIPT_DIR/venv/bin/python app.py
+WorkingDirectory=/opt/pifileserver
+ExecStart=/opt/pifileserver/venv/bin/python app.py
 Restart=always
 RestartSec=3
 
@@ -91,7 +97,10 @@ EOL
 
 # Set correct permissions
 echo "Setting permissions..."
-chown -R pifileserver:pifileserver "$SCRIPT_DIR"
+chown -R pifileserver:pifileserver "$INSTALL_DIR"
+chown -R pifileserver:pifileserver "$BASE_DIR"
+chmod 755 "$INSTALL_DIR"
+chmod 755 "$BASE_DIR"
 chmod 644 /etc/systemd/system/pifileserver.service
 chmod 644 /etc/pifileserver.env
 
@@ -104,6 +113,7 @@ systemctl start pifileserver
 echo "Installation complete!"
 echo "The Pi File Server is now running at http://localhost:8000"
 echo "Files are stored in: $BASE_DIR"
+echo "Application is installed in: $INSTALL_DIR"
 echo "To check the service status: systemctl status pifileserver"
 echo "To view logs: journalctl -u pifileserver"
 echo "Configuration file: /etc/pifileserver.env"
