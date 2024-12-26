@@ -39,8 +39,6 @@ cd PiWebFileServer
 ```bash
 python3 -m venv venv
 source venv/bin/activate  # On Linux/Raspberry Pi
-# or
-.\venv\Scripts\activate  # On Windows
 ```
 
 4. Install the required Python packages:
@@ -55,13 +53,6 @@ For Linux/Mac:
 # Set environment variables before running the app
 export PI_FILE_SERVER_BASE_DIR=/path/to/shared/files
 export PI_FILE_SERVER_PORT=8000
-```
-
-For Windows:
-```cmd
-# Set environment variables before running the app
-set PI_FILE_SERVER_BASE_DIR=C:\path\to\shared\files
-set PI_FILE_SERVER_PORT=8000
 ```
 
 Or create a `.env` file in the project directory:
