@@ -175,10 +175,14 @@ EOL
 
     # Reload systemd and start service (as the actual user)
     echo "Starting service..."
-    # Create a temporary script to run the systemd commands as the actual user
-    TEMP_SCRIPT=$(mktemp)
-    cat > "$TEMP_SCRIPT" << 'EOF'
+    
+    # Create startup script in user's home directory
+    STARTUP_SCRIPT="$ACTUAL_HOME/.local/bin/start_pifileserver.sh"
+    mkdir -p "$(dirname "$STARTUP_SCRIPT")"
+    
+    cat > "$STARTUP_SCRIPT" << 'EOF'
 #!/bin/bash
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 systemctl --user daemon-reload
 sleep 2
 systemctl --user enable pifileserver
@@ -188,9 +192,12 @@ sleep 2
 systemctl --user status pifileserver
 EOF
 
-    chmod +x "$TEMP_SCRIPT"
-    sudo -u "$ACTUAL_USER" bash "$TEMP_SCRIPT"
-    rm "$TEMP_SCRIPT"
+    # Set correct permissions
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$STARTUP_SCRIPT"
+    chmod 755 "$STARTUP_SCRIPT"
+
+    # Run the script as the actual user
+    sudo -u "$ACTUAL_USER" "$STARTUP_SCRIPT"
 
     echo "Installation complete!"
     echo "The Pi File Server is now running at http://localhost:8000"
