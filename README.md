@@ -23,12 +23,19 @@ A modern web-based file server for Raspberry Pi that allows you to browse, uploa
 
 ## Installation
 
-1. Install Python virtual environment package (on Raspberry Pi OS):
+1. Install required system packages (on Raspberry Pi OS):
 ```bash
-sudo apt install python3-venv
+sudo apt update
+sudo apt install -y python3-venv git
 ```
 
-2. Create and activate a virtual environment:
+2. Clone the repository:
+```bash
+git clone https://github.com/PeakeElectronicInnovation/PiWebFileServer.git
+cd PiWebFileServer
+```
+
+3. Create and activate a Python virtual environment:
 ```bash
 python3 -m venv venv
 source venv/bin/activate  # On Linux/Raspberry Pi
@@ -36,19 +43,38 @@ source venv/bin/activate  # On Linux/Raspberry Pi
 .\venv\Scripts\activate  # On Windows
 ```
 
-3. Install the required dependencies:
+4. Install the required Python packages:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Run the application:
+5. (Optional) Configure environment variables:
+```bash
+# Set the base directory for file operations (optional, defaults to home directory)
+export PI_FILE_SERVER_BASE_DIR=/path/to/shared/files
+
+# Set the port (optional, defaults to 443)
+export PI_FILE_SERVER_PORT=8000
+
+# Set SSL certificate paths (optional, for HTTPS)
+export PI_FILE_SERVER_SSL_CERT=cert/cert.pem
+export PI_FILE_SERVER_SSL_KEY=cert/key.pem
+```
+
+6. Run the application:
 ```bash
 python app.py
 ```
 
-5. Access the web interface by opening a browser and navigating to:
-```
-http://[your-pi-ip]
+7. Access the web interface:
+   - If using default port (443): `https://[your-pi-ip]`
+   - If using custom port: `http://[your-pi-ip]:[port]`
+   - Replace `[your-pi-ip]` with your Raspberry Pi's IP address
+   - The IP address is shown in the console when you start the server
+
+Note: If you're running on port 443 (default) or 80, you'll need to run with sudo or setup proper permissions:
+```bash
+sudo python app.py
 ```
 
 ## Configuration
@@ -129,6 +155,71 @@ The service will now:
 - Restart automatically if it crashes
 - Run under your user account
 - Serve files from the configured base directory
+
+## Development Setup
+
+If you want to contribute to the project:
+
+1. Fork the repository on GitHub
+
+2. Clone your fork:
+```bash
+git clone https://github.com/[your-username]/PiWebFileServer.git
+cd PiWebFileServer
+```
+
+3. Create a new branch for your feature:
+```bash
+git checkout -b feature-name
+```
+
+4. Set up the development environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Linux/Mac
+# or
+.\venv\Scripts\activate  # On Windows
+
+pip install -r requirements.txt
+```
+
+5. Run the server in development mode:
+```bash
+# Use a non-privileged port for development
+export PI_FILE_SERVER_PORT=8000
+python app.py
+```
+
+## Troubleshooting
+
+### Permission Issues
+- If you get a "Permission denied" error when running on port 443:
+  - Use sudo (not recommended for development)
+  - Use a port number above 1024
+  - Set up proper port permissions (recommended for production)
+
+### SSL Certificate Issues
+- If you see SSL certificate warnings:
+  - This is normal with self-signed certificates
+  - Accept the certificate in your browser
+  - For production, use a proper SSL certificate from a trusted authority
+
+### File Permission Issues
+- Ensure the application has read/write permissions for:
+  - The base directory (`PI_FILE_SERVER_BASE_DIR`)
+  - The SSL certificate directory (if using HTTPS)
+  - The directory where the application is running
+
+### Common Errors
+- "Address already in use":
+  - Another service is using the port
+  - Use `sudo netstat -tulpn | grep [port]` to find what's using the port
+  - Choose a different port or stop the other service
+
+- "No such file or directory":
+  - Check that all paths in environment variables are correct
+  - Ensure the SSL certificates exist (if using HTTPS)
+  - Verify the base directory exists and is accessible
 
 ## Security Notes
 
