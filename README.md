@@ -62,8 +62,7 @@ PI_FILE_SERVER_PORT=8000
 ```
 
 Note: Environment variables must be set BEFORE running the application. You can verify they are set correctly:
-- Linux/Mac: `echo $PI_FILE_SERVER_BASE_DIR`
-- Windows: `echo %PI_FILE_SERVER_BASE_DIR%`
+- Linux: `echo $PI_FILE_SERVER_BASE_DIR`
 
 6. Run the application:
 ```bash
