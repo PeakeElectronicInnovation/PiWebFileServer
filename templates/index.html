@@ -47,8 +47,12 @@
         .system-stats {
             font-size: 0.9rem;
         }
+        .system-stats .value {
+            transition: all 0.5s ease-in-out;
+        }
         .progress {
             height: 8px;
+            transition: width 0.5s ease-in-out;
         }
         .action-icon {
             cursor: pointer;
@@ -636,8 +640,8 @@
         loadFiles();
         updateSystemStats();
         
-        // Update system stats every 5 seconds
-        setInterval(updateSystemStats, 5000);
+        // Update every second
+        setInterval(updateSystemStats, 1000);
     </script>
 </body>
 <footer class="footer">
