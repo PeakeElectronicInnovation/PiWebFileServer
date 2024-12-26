@@ -49,17 +49,30 @@ pip install -r requirements.txt
 ```
 
 5. (Optional) Configure environment variables:
+
+For Linux/Mac:
 ```bash
-# Set the base directory for file operations (optional, defaults to home directory)
+# Set environment variables before running the app
 export PI_FILE_SERVER_BASE_DIR=/path/to/shared/files
-
-# Set the port (optional, defaults to 8000)
-export PI_FILE_SERVER_PORT=80  # Use 80 for HTTP or 443 for HTTPS in production
-
-# Set SSL certificate paths (optional, for HTTPS)
-export PI_FILE_SERVER_SSL_CERT=cert/cert.pem
-export PI_FILE_SERVER_SSL_KEY=cert/key.pem
+export PI_FILE_SERVER_PORT=8000
 ```
+
+For Windows:
+```cmd
+# Set environment variables before running the app
+set PI_FILE_SERVER_BASE_DIR=C:\path\to\shared\files
+set PI_FILE_SERVER_PORT=8000
+```
+
+Or create a `.env` file in the project directory:
+```bash
+PI_FILE_SERVER_BASE_DIR=/path/to/shared/files
+PI_FILE_SERVER_PORT=8000
+```
+
+Note: Environment variables must be set BEFORE running the application. You can verify they are set correctly:
+- Linux/Mac: `echo $PI_FILE_SERVER_BASE_DIR`
+- Windows: `echo %PI_FILE_SERVER_BASE_DIR%`
 
 6. Run the application:
 ```bash
