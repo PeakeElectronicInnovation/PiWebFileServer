@@ -9,7 +9,7 @@ BASE_DIR = str(Path(BASE_DIR).resolve())
 
 # Server configuration
 HOST = '0.0.0.0'
-PORT = int(os.environ.get('PI_FILE_SERVER_PORT', '443'))  # Changed to HTTPS default port
+PORT = int(os.environ.get('PI_FILE_SERVER_PORT', '8000'))  # Changed to 8000 default port
 MAX_CONTENT_LENGTH = 5 * 1024 * 1024 * 1024  # 5GB max file size
 
 # SSL Configuration

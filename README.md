@@ -53,8 +53,8 @@ pip install -r requirements.txt
 # Set the base directory for file operations (optional, defaults to home directory)
 export PI_FILE_SERVER_BASE_DIR=/path/to/shared/files
 
-# Set the port (optional, defaults to 443)
-export PI_FILE_SERVER_PORT=8000
+# Set the port (optional, defaults to 8000)
+export PI_FILE_SERVER_PORT=80  # Use 80 for HTTP or 443 for HTTPS in production
 
 # Set SSL certificate paths (optional, for HTTPS)
 export PI_FILE_SERVER_SSL_CERT=cert/cert.pem
@@ -67,22 +67,25 @@ python app.py
 ```
 
 7. Access the web interface:
-   - If using default port (443): `https://[your-pi-ip]`
-   - If using custom port: `http://[your-pi-ip]:[port]`
+   - Default development URL: `http://[your-pi-ip]:8000`
+   - For production with HTTP: `http://[your-pi-ip]` (requires sudo or proper permissions)
+   - For production with HTTPS: `https://[your-pi-ip]` (requires sudo or proper permissions)
    - Replace `[your-pi-ip]` with your Raspberry Pi's IP address
    - The IP address is shown in the console when you start the server
 
-Note: If you're running on port 443 (default) or 80, you'll need to run with sudo or setup proper permissions:
+Note: For production use on port 80 (HTTP) or 443 (HTTPS), you'll need root privileges:
 ```bash
 sudo python app.py
 ```
+
+For development, the default port 8000 can be used without sudo.
 
 ## Configuration
 
 The server can be configured using environment variables:
 
 - `PI_FILE_SERVER_BASE_DIR`: Base directory for file operations (default: user's home directory)
-- `PI_FILE_SERVER_PORT`: Port to run the server on (default: 443)
+- `PI_FILE_SERVER_PORT`: Port to run the server on (default: 8000)
 - `PI_FILE_SERVER_DOMAIN`: Optional domain name
 - `PI_FILE_SERVER_SSL_CERT`: Path to SSL certificate (optional)
 - `PI_FILE_SERVER_SSL_KEY`: Path to SSL private key (optional)
