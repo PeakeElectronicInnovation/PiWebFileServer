@@ -43,35 +43,94 @@
             display: none;
             z-index: 1000;
         }
+        .system-stats {
+            font-size: 0.9rem;
+        }
+        .progress {
+            height: 8px;
+        }
+        .action-icon {
+            cursor: pointer;
+            color: #6c757d;
+            transition: color 0.2s;
+        }
+        .action-icon:hover {
+            color: #0d6efd;
+        }
+        .action-icon.delete:hover {
+            color: #dc3545;
+        }
+        .dir-name {
+            cursor: pointer;
+            color: #0d6efd;
+        }
+        .dir-name:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div class="container-fluid py-4">
-        <h1 class="mb-4">Pi File Server</h1>
-        
-        <nav aria-label="breadcrumb" class="mb-3">
-            <ol class="breadcrumb" id="path-breadcrumb">
-                <li class="breadcrumb-item active" data-path="">Home</li>
-            </ol>
-        </nav>
+        <div class="row">
+            <div class="col-md-9">
+                <h1 class="mb-4">Pi File Server</h1>
+                
+                <nav aria-label="breadcrumb" class="mb-3">
+                    <ol class="breadcrumb" id="path-breadcrumb">
+                        <li class="breadcrumb-item active" data-path="">Home</li>
+                    </ol>
+                </nav>
 
-        <div class="drop-zone mb-4">
-            <p class="mb-0">Drag and drop files here or click to upload</p>
-            <input type="file" id="file-input" style="display: none" multiple>
-        </div>
+                <div class="drop-zone mb-4">
+                    <p class="mb-0">Drag and drop files here or click to upload</p>
+                    <input type="file" id="file-input" style="display: none" multiple>
+                </div>
 
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Size</th>
-                        <th>Modified</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="file-list"></tbody>
-            </table>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Size</th>
+                                <th>Modified</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="file-list"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        System Information
+                    </div>
+                    <div class="card-body system-stats">
+                        <h6 class="card-subtitle mb-2 text-muted" id="hostname">Loading...</h6>
+                        <p class="card-text" id="ip-address"></p>
+                        <p class="card-text" id="uptime"></p>
+                        
+                        <h6 class="mt-3 mb-2">CPU Usage</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar" id="cpu-bar" role="progressbar"></div>
+                        </div>
+                        <p class="card-text" id="cpu-usage"></p>
+                        
+                        <h6 class="mt-3 mb-2">Memory Usage</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar" id="ram-bar" role="progressbar"></div>
+                        </div>
+                        <p class="card-text" id="ram-usage"></p>
+                        
+                        <h6 class="mt-3 mb-2">Disk Usage</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar" id="disk-bar" role="progressbar"></div>
+                        </div>
+                        <p class="card-text" id="disk-usage"></p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -106,6 +165,27 @@
 
         function formatDate(timestamp) {
             return new Date(timestamp * 1000).toLocaleString();
+        }
+
+        function updateSystemStats() {
+            fetch('/api/system-stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('hostname').textContent = data.hostname;
+                    document.getElementById('ip-address').textContent = `IP: ${data.ip_address}`;
+                    document.getElementById('uptime').textContent = `Uptime: ${data.uptime}`;
+                    
+                    document.getElementById('cpu-usage').textContent = data.cpu_usage;
+                    document.getElementById('cpu-bar').style.width = data.cpu_usage;
+                    
+                    document.getElementById('ram-usage').textContent = 
+                        `${data.ram_used} / ${data.ram_total} (${data.ram_percent})`;
+                    document.getElementById('ram-bar').style.width = data.ram_percent;
+                    
+                    document.getElementById('disk-usage').textContent = 
+                        `${data.disk_used} / ${data.disk_total} (${data.disk_percent})`;
+                    document.getElementById('disk-bar').style.width = data.disk_percent;
+                });
         }
 
         function updateBreadcrumb(path) {
@@ -156,23 +236,22 @@
                     tr.innerHTML = `
                         <td>
                             <i class="bi ${file.is_dir ? 'bi-folder' : 'bi-file'} me-2"></i>
-                            ${file.name}
+                            ${file.is_dir ? 
+                                `<span class="dir-name" onclick="loadFiles('${file.path}')">${file.name}</span>` :
+                                file.name
+                            }
                         </td>
                         <td>${formatSize(file.size)}</td>
                         <td>${formatDate(file.modified)}</td>
-                        <td>
-                            ${file.is_dir ? 
-                                `<button class="btn btn-sm btn-primary me-2" onclick="loadFiles('${file.path}')">
-                                    Open
-                                </button>` :
-                                `<a href="/api/download/${encodeURIComponent(file.path)}" 
-                                    class="btn btn-sm btn-success me-2" download>
-                                    Download
-                                </a>`
+                        <td class="text-end">
+                            ${file.is_dir ? '' : 
+                                `<i class="bi bi-download action-icon me-3" 
+                                    onclick="window.location.href='/api/download/${encodeURIComponent(file.path)}'" 
+                                    title="Download"></i>`
                             }
-                            <button class="btn btn-sm btn-danger" onclick="deleteFile('${file.path}')">
-                                Delete
-                            </button>
+                            <i class="bi bi-trash action-icon delete" 
+                               onclick="deleteFile('${file.path}')" 
+                               title="Delete"></i>
                         </td>
                     `;
                     fileList.appendChild(tr);
@@ -257,6 +336,10 @@
 
         // Initial load
         loadFiles();
+        updateSystemStats();
+        
+        // Update system stats every 5 seconds
+        setInterval(updateSystemStats, 5000);
     </script>
 </body>
 </html>
