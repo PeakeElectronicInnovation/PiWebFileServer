@@ -221,6 +221,122 @@ def create_directory():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/bulk-delete', methods=['POST'])
+def bulk_delete():
+    paths = request.json.get('paths', [])
+    if not paths:
+        return jsonify({'error': 'No paths specified'}), 400
+    
+    results = []
+    for path in paths:
+        try:
+            file_path = Path(config.BASE_DIR) / path
+            file_path = file_path.resolve()
+            if not str(file_path).startswith(config.BASE_DIR):
+                results.append({'path': path, 'success': False, 'error': 'Access denied'})
+                continue
+                
+            if not file_path.exists():
+                results.append({'path': path, 'success': False, 'error': 'Not found'})
+                continue
+                
+            if file_path.is_file():
+                file_path.unlink()
+            else:
+                file_path.rmdir()  # Only delete empty directories
+            results.append({'path': path, 'success': True})
+        except Exception as e:
+            results.append({'path': path, 'success': False, 'error': str(e)})
+    
+    return jsonify({'results': results})
+
+@app.route('/api/bulk-move', methods=['POST'])
+def bulk_move():
+    paths = request.json.get('paths', [])
+    target = request.json.get('target', '')
+    if not paths:
+        return jsonify({'error': 'No paths specified'}), 400
+    if not target:
+        return jsonify({'error': 'No target directory specified'}), 400
+        
+    try:
+        target_dir = Path(config.BASE_DIR) / target
+        target_dir = target_dir.resolve()
+        if not str(target_dir).startswith(config.BASE_DIR):
+            return jsonify({'error': 'Access denied: Target is outside base directory'}), 403
+        if not target_dir.is_dir():
+            return jsonify({'error': 'Target is not a directory'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+        
+    results = []
+    for path in paths:
+        try:
+            source_path = Path(config.BASE_DIR) / path
+            source_path = source_path.resolve()
+            if not str(source_path).startswith(config.BASE_DIR):
+                results.append({'path': path, 'success': False, 'error': 'Access denied'})
+                continue
+                
+            if not source_path.exists():
+                results.append({'path': path, 'success': False, 'error': 'Not found'})
+                continue
+                
+            new_path = target_dir / source_path.name
+            if new_path.exists():
+                results.append({'path': path, 'success': False, 'error': 'Target already exists'})
+                continue
+                
+            source_path.rename(new_path)
+            results.append({'path': path, 'success': True})
+        except Exception as e:
+            results.append({'path': path, 'success': False, 'error': str(e)})
+    
+    return jsonify({'results': results})
+
+@app.route('/api/bulk-download', methods=['POST'])
+def bulk_download():
+    paths = request.json.get('paths', [])
+    if not paths:
+        return jsonify({'error': 'No paths specified'}), 400
+        
+    # Create a temporary zip file
+    import tempfile
+    import zipfile
+    import shutil
+    
+    temp_dir = tempfile.mkdtemp()
+    try:
+        zip_path = Path(temp_dir) / 'download.zip'
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for path in paths:
+                try:
+                    file_path = Path(config.BASE_DIR) / path
+                    file_path = file_path.resolve()
+                    if not str(file_path).startswith(config.BASE_DIR):
+                        continue
+                    if not file_path.exists() or not file_path.is_file():
+                        continue
+                    zipf.write(file_path, file_path.name)
+                except Exception:
+                    continue
+                    
+        return send_file(
+            zip_path,
+            as_attachment=True,
+            download_name='download.zip',
+            mimetype='application/zip'
+        )
+    finally:
+        # Clean up temp directory in the background
+        def cleanup():
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass
+        import threading
+        threading.Timer(60, cleanup).start()
+
 if __name__ == '__main__':
     ssl_context = None
     if os.path.exists(config.SSL_CERT) and os.path.exists(config.SSL_KEY):
