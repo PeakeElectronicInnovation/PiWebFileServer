@@ -4,7 +4,6 @@ A modern web-based file server for Raspberry Pi that allows you to browse, uploa
 
 ## Features
 
-- Modern, responsive web interface with Peake Electronic Innovation branding
 - Real-time system information display (CPU, Memory, Disk usage)
 - Drag and drop file uploads
 - File and directory operations:
