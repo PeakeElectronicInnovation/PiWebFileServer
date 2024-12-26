@@ -7,9 +7,19 @@ import socket
 import time
 from datetime import datetime
 import config
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
+
+# Log configuration on startup
+logger.info(f"Starting Pi File Server")
+logger.info(f"Base Directory: {config.BASE_DIR}")
+logger.info(f"Working Directory: {os.getcwd()}")
 
 def get_system_stats():
     # Get system information
