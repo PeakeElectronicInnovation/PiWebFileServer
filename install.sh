@@ -12,6 +12,11 @@ INSTALL_DIR="$ACTUAL_HOME/.local/share/pifileserver"
 CONFIG_DIR="$ACTUAL_HOME/.config/pifileserver"
 SERVICE_FILE="$ACTUAL_HOME/.config/systemd/user/pifileserver.service"
 
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
 # Function to uninstall
 uninstall() {
     echo "Uninstalling Pi File Server..."
@@ -75,10 +80,26 @@ install() {
         exit 1
     fi
 
-    # Install system dependencies
-    echo "Installing system dependencies..."
-    apt-get update
-    apt-get install -y python3-venv python3-pip
+    # Check and install dependencies
+    echo "Checking system dependencies..."
+    
+    # Only run apt-get update and install if python3-venv or python3-pip is missing
+    if ! command_exists python3 || ! python3 -c "import venv" >/dev/null 2>&1 || ! command_exists pip3; then
+        echo "Installing missing Python dependencies..."
+        # Try apt-get update, but don't fail if it errors
+        apt-get update || true
+        # Install packages, trying different methods
+        if ! apt-get install -y python3-venv python3-pip; then
+            echo "Failed to install via apt-get. Checking if packages are already installed..."
+            if ! command_exists python3 || ! python3 -c "import venv" >/dev/null 2>&1 || ! command_exists pip3; then
+                echo "Error: Required packages (python3-venv, python3-pip) could not be installed."
+                echo "Please install them manually and run this script again."
+                exit 1
+            fi
+        fi
+    else
+        echo "Python dependencies already installed."
+    fi
 
     # Create and configure installation directory
     echo "Setting up installation directory..."
