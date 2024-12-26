@@ -43,35 +43,26 @@ http://[your-pi-ip]:5000
 
 ## SSL Configuration
 
-To enable HTTPS with a valid SSL certificate:
+To enable HTTPS with a self-signed certificate:
 
-1. Install certbot:
+1. Create SSL directory and generate self-signed certificate:
 ```bash
-sudo apt-get update
-sudo apt-get install certbot
-```
-
-2. Generate certificates (replace with your domain):
-```bash
-sudo certbot certonly --standalone -d mini-server.lan
-```
-
-3. Copy certificates to the application:
-```bash
+# Create SSL directory
 sudo mkdir -p /home/admin/PiWebFileServer/ssl
-sudo cp /etc/letsencrypt/live/mini-server.lan/fullchain.pem /home/admin/PiWebFileServer/ssl/
-sudo cp /etc/letsencrypt/live/mini-server.lan/privkey.pem /home/admin/PiWebFileServer/ssl/
+
+# Generate self-signed certificate
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /home/admin/PiWebFileServer/ssl/privkey.pem \
+    -out /home/admin/PiWebFileServer/ssl/fullchain.pem \
+    -subj "/CN=mini-server.lan"
+
+# Set correct permissions
 sudo chown -R admin:admin /home/admin/PiWebFileServer/ssl
 sudo chmod 700 /home/admin/PiWebFileServer/ssl
 sudo chmod 600 /home/admin/PiWebFileServer/ssl/*.pem
 ```
 
-4. Set up auto-renewal:
-```bash
-sudo certbot renew --dry-run
-```
-
-5. Restart the service:
+2. Restart the service:
 ```bash
 sudo systemctl restart pi-file-server
 ```
@@ -79,8 +70,9 @@ sudo systemctl restart pi-file-server
 The server will now:
 - Run on port 443 (standard HTTPS port)
 - Automatically redirect HTTP to HTTPS
-- Use valid SSL certificates
-- Auto-renew certificates before expiry
+- Use self-signed SSL certificate
+
+Note: When accessing the server for the first time, your browser will show a security warning because the certificate is self-signed. This is normal and you can proceed by accepting the certificate. The connection will still be encrypted, just not verified by a trusted certificate authority.
 
 ## Running as a Service
 
