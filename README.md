@@ -42,6 +42,21 @@ The server will be installed and started automatically. Access it at:
 - http://localhost:8000 (default)
 - http://your-pi-ip:8000
 
+## Uninstallation
+
+To remove Pi File Server:
+```bash
+sudo bash install.sh uninstall
+```
+
+This will:
+- Stop and disable the service
+- Remove application files
+- Remove configuration files
+- Keep your data directory intact
+
+To completely remove everything, including your data, manually delete your configured data directory after uninstalling.
+
 ## Service Management
 
 The server runs as a systemd service. Here are common commands:
