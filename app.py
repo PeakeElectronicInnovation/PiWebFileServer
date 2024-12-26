@@ -10,6 +10,7 @@ import config
 import logging
 import ssl
 from werkzeug.middleware.proxy_fix import ProxyFix
+import mimetypes
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -53,6 +54,23 @@ def get_system_stats():
         'disk_percent': f"{disk.percent}%"
     }
 
+def is_previewable(filename):
+    mime_type, _ = mimetypes.guess_type(filename)
+    if mime_type is None:
+        return False
+        
+    previewable_types = [
+        'text/',
+        'image/',
+        'application/pdf',
+        'application/json',
+        'application/javascript',
+        'application/xml',
+        'application/x-httpd-php',
+    ]
+    
+    return any(mime_type.startswith(t) for t in previewable_types)
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -78,12 +96,14 @@ def list_files():
         files = []
         for item in requested_path.iterdir():
             try:
+                is_file = item.is_file()
                 files.append({
                     'name': item.name,
                     'path': str(item.relative_to(Path(config.BASE_DIR))),
-                    'is_dir': item.is_dir(),
-                    'size': os.path.getsize(item) if item.is_file() else None,
-                    'modified': os.path.getmtime(item)
+                    'is_dir': not is_file,
+                    'size': os.path.getsize(item) if is_file else None,
+                    'modified': os.path.getmtime(item),
+                    'previewable': is_previewable(item.name) if is_file else False
                 })
             except (PermissionError, OSError):
                 continue
@@ -157,7 +177,47 @@ def download_file(filepath):
             
         if not file_path.exists() or not file_path.is_file():
             abort(404)
-        return send_file(str(file_path))
+            
+        download_mode = request.args.get('download', 'false').lower() == 'true'
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        
+        if download_mode:
+            return send_file(
+                str(file_path),
+                as_attachment=True,
+                download_name=file_path.name
+            )
+        else:
+            return send_file(
+                str(file_path),
+                mimetype=mime_type if mime_type else 'application/octet-stream'
+            )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/create-directory', methods=['POST'])
+def create_directory():
+    path = request.json.get('path', '')
+    name = request.json.get('name', '').strip()
+    
+    if not name:
+        return jsonify({'error': 'Directory name is required'}), 400
+    
+    if any(char in name for char in ['/', '\\', ':', '*', '?', '"', '<', '>', '|']):
+        return jsonify({'error': 'Invalid directory name'}), 400
+    
+    try:
+        parent_dir = Path(config.BASE_DIR) / path
+        parent_dir = parent_dir.resolve()
+        if not str(parent_dir).startswith(config.BASE_DIR):
+            return jsonify({'error': 'Access denied: Path is outside base directory'}), 403
+        
+        new_dir = parent_dir / name
+        if new_dir.exists():
+            return jsonify({'error': 'Directory already exists'}), 409
+            
+        new_dir.mkdir(parents=True)
+        return jsonify({'message': 'Directory created successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
