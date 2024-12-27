@@ -8,7 +8,7 @@ User=admin
 Group=admin
 WorkingDirectory=/home/admin/PiWebFileServer
 Environment="PATH=/home/admin/PiWebFileServer/venv/bin"
-Environment="PI_FILE_SERVER_BASE_DIR=/home/admin/Documents"
+Environment="PI_FILE_SERVER_BASE_DIR=/home/admin"
 Environment="FLASK_ENV=development"
 Environment="FLASK_DEBUG=1"
 
