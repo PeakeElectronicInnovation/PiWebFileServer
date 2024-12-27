@@ -145,12 +145,16 @@ After=network.target
 
 [Service]
 Type=simple
+Environment="PYTHONPATH=$INSTALL_DIR"
 Environment="PATH=$INSTALL_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="VIRTUAL_ENV=$INSTALL_DIR/venv"
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/venv/bin/python $INSTALL_DIR/app.py
+ExecStart=$INSTALL_DIR/venv/bin/python3 -u $INSTALL_DIR/app.py
 Restart=always
 RestartSec=3
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=default.target
@@ -165,6 +169,10 @@ EOL
     chmod 755 "$BASE_DIR"
     chmod 644 "$ENV_FILE"
     chmod 644 "$SERVICE_FILE"
+
+    # Create the default.target.wants directory
+    mkdir -p "$ACTUAL_HOME/.config/systemd/user/default.target.wants"
+    chown -R "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.config/systemd/user"
 
     # Enable lingering for the user (allows user services to run without login)
     echo "Enabling user service capabilities..."
@@ -185,11 +193,14 @@ EOL
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 systemctl --user daemon-reload
 sleep 2
+mkdir -p ~/.config/systemd/user/default.target.wants
+ln -sf ~/.config/systemd/user/pifileserver.service ~/.config/systemd/user/default.target.wants/pifileserver.service
 systemctl --user enable pifileserver
 sleep 2
 systemctl --user start pifileserver
 sleep 2
 systemctl --user status pifileserver
+journalctl --user -u pifileserver --no-pager -n 20
 EOF
 
     # Set correct permissions
@@ -213,6 +224,7 @@ EOF
         echo "WARNING: Service may not have started properly."
         echo "Please check the status with: systemctl --user status pifileserver"
         echo "And view logs with: journalctl --user -u pifileserver"
+        echo "You can also try starting it manually with: systemctl --user start pifileserver"
     fi
 }
 
