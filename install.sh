@@ -228,6 +228,83 @@ EOL
     chown "$ACTUAL_USER:$ACTUAL_USER" "$TEST_SCRIPT"
     chmod 755 "$TEST_SCRIPT"
 
+    # Create a wrapper script for the app
+    WRAPPER_SCRIPT="$INSTALL_DIR/run_app.sh"
+    cat > "$WRAPPER_SCRIPT" << EOL
+#!/bin/bash
+set -x  # Enable debug output
+
+export PYTHONPATH="$INSTALL_DIR"
+export VIRTUAL_ENV="$INSTALL_DIR/venv"
+export PATH="$INSTALL_DIR/venv/bin:\$PATH"
+export FLASK_APP="$INSTALL_DIR/app.py"
+export FLASK_ENV="development"
+export DEBUG=1
+export PI_FILE_SERVER_BASE_DIR="$BASE_DIR"
+export PI_FILE_SERVER_PORT=8000
+
+cd "$INSTALL_DIR"
+
+# Print debug info
+echo "=== Environment ==="
+env | sort
+echo "=== Directory Contents ==="
+ls -la
+echo "=== Python Info ==="
+which python3
+python3 -V
+echo "=== Flask Info ==="
+python3 -c 'import flask; print("Flask path:", flask.__file__)'
+echo "=== Starting App ==="
+
+exec "$INSTALL_DIR/venv/bin/python3" -u "$INSTALL_DIR/app.py" 2>&1
+EOL
+
+    chmod 755 "$WRAPPER_SCRIPT"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$WRAPPER_SCRIPT"
+
+    # Set up systemd service for the user
+    echo "Setting up systemd user service..."
+    mkdir -p "$ACTUAL_HOME/.config/systemd/user"
+    cat > "$SERVICE_FILE" << EOL
+[Unit]
+Description=Pi File Server
+After=network.target
+
+[Service]
+Type=simple
+Environment="PYTHONPATH=$INSTALL_DIR"
+Environment="PATH=$INSTALL_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="VIRTUAL_ENV=$INSTALL_DIR/venv"
+Environment="PYTHONUNBUFFERED=1"
+Environment="DEBUG=1"
+Environment="PI_FILE_SERVER_BASE_DIR=$BASE_DIR"
+Environment="PI_FILE_SERVER_PORT=8000"
+Environment="FLASK_APP=$INSTALL_DIR/app.py"
+Environment="FLASK_ENV=development"
+EnvironmentFile=$ENV_FILE
+WorkingDirectory=$INSTALL_DIR
+
+# Pre-start checks
+ExecStartPre=/bin/sh -c 'echo "=== Starting Pi File Server ==="'
+ExecStartPre=/bin/sh -c 'echo "Working directory: \$(pwd)"'
+ExecStartPre=/bin/sh -c 'echo "Directory contents:" && ls -la'
+ExecStartPre=/bin/sh -c 'test -f "$INSTALL_DIR/app.py" || (echo "app.py not found in $INSTALL_DIR" && exit 1)'
+ExecStartPre=/bin/sh -c 'test -d "$INSTALL_DIR/venv" || (echo "Virtual environment not found in $INSTALL_DIR/venv" && exit 1)'
+ExecStartPre=/bin/sh -c '$INSTALL_DIR/venv/bin/python3 -c "import flask; print(\"Flask version:\", flask.__version__)"'
+
+# Run the app through the wrapper script
+ExecStart=/bin/bash -x $INSTALL_DIR/run_app.sh
+
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+EOL
+
     # Create startup script in user's home directory
     STARTUP_SCRIPT="$ACTUAL_HOME/.local/bin/start_pifileserver.sh"
     mkdir -p "$(dirname "$STARTUP_SCRIPT")"
@@ -255,69 +332,9 @@ echo "Service status:"
 systemctl --user status pifileserver
 echo "Service logs:"
 journalctl --user -u pifileserver --no-pager -n 50
+echo "Checking service with curl:"
+curl -v http://localhost:8000/ || echo "Service not responding"
 EOL
-
-    # Set up systemd service for the user
-    echo "Setting up systemd user service..."
-    mkdir -p "$ACTUAL_HOME/.config/systemd/user"
-    cat > "$SERVICE_FILE" << EOL
-[Unit]
-Description=Pi File Server
-After=network.target
-
-[Service]
-Type=simple
-Environment="PYTHONPATH=$INSTALL_DIR"
-Environment="PATH=$INSTALL_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-Environment="VIRTUAL_ENV=$INSTALL_DIR/venv"
-Environment="PYTHONUNBUFFERED=1"
-Environment="DEBUG=1"
-Environment="FLASK_APP=$INSTALL_DIR/app.py"
-Environment="FLASK_ENV=development"
-EnvironmentFile=$ENV_FILE
-WorkingDirectory=$INSTALL_DIR
-
-# Pre-start checks
-ExecStartPre=/bin/sh -c 'echo "Starting Pi File Server in \$(pwd)"'
-ExecStartPre=/bin/sh -c 'test -f "$INSTALL_DIR/app.py" || (echo "app.py not found in $INSTALL_DIR" && exit 1)'
-ExecStartPre=/bin/sh -c 'test -d "$INSTALL_DIR/venv" || (echo "Virtual environment not found in $INSTALL_DIR/venv" && exit 1)'
-ExecStartPre=/bin/sh -c '$INSTALL_DIR/venv/bin/python3 -c "import flask; print(\"Flask version:\", flask.__version__)"'
-
-# Run the app through the wrapper script
-ExecStart=$INSTALL_DIR/run_app.sh
-
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=default.target
-EOL
-
-    # Create a wrapper script for the app
-    WRAPPER_SCRIPT="$INSTALL_DIR/run_app.sh"
-    cat > "$WRAPPER_SCRIPT" << EOL
-#!/bin/bash
-export PYTHONPATH="$INSTALL_DIR"
-export VIRTUAL_ENV="$INSTALL_DIR/venv"
-export PATH="$INSTALL_DIR/venv/bin:\$PATH"
-export FLASK_APP="$INSTALL_DIR/app.py"
-export FLASK_ENV="development"
-export DEBUG=1
-
-cd "$INSTALL_DIR"
-
-# Print debug info
-echo "Current directory: \$(pwd)"
-echo "Python path: \$(which python3)"
-echo "Flask path: \$(python3 -c 'import flask; print(flask.__file__)')"
-
-exec "$INSTALL_DIR/venv/bin/python3" -u "$INSTALL_DIR/app.py" 2>&1
-EOL
-
-    chmod 755 "$WRAPPER_SCRIPT"
-    chown "$ACTUAL_USER:$ACTUAL_USER" "$WRAPPER_SCRIPT"
 
     # Set correct permissions
     echo "Setting permissions..."
