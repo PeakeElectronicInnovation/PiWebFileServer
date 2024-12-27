@@ -135,6 +135,26 @@ PI_FILE_SERVER_PORT=8000
 #PI_FILE_SERVER_SSL_KEY=/path/to/key.pem
 EOL
 
+    # Create test script to verify Python environment
+    TEST_SCRIPT="$INSTALL_DIR/test_env.py"
+    cat > "$TEST_SCRIPT" << 'EOL'
+import sys
+import os
+
+print("Python executable:", sys.executable)
+print("Python version:", sys.version)
+print("PYTHONPATH:", os.environ.get('PYTHONPATH'))
+print("Working directory:", os.getcwd())
+try:
+    import flask
+    print("Flask version:", flask.__version__)
+except ImportError as e:
+    print("Error importing Flask:", e)
+EOL
+
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$TEST_SCRIPT"
+    chmod 755 "$TEST_SCRIPT"
+
     # Create startup script in user's home directory
     STARTUP_SCRIPT="$ACTUAL_HOME/.local/bin/start_pifileserver.sh"
     mkdir -p "$(dirname "$STARTUP_SCRIPT")"
@@ -183,9 +203,16 @@ Environment="FLASK_APP=$INSTALL_DIR/app.py"
 Environment="FLASK_ENV=development"
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$INSTALL_DIR
+
+# Pre-start checks
 ExecStartPre=/bin/sh -c 'echo "Starting Pi File Server in \$(pwd)"'
+ExecStartPre=/bin/sh -c 'test -f "$INSTALL_DIR/app.py" || (echo "app.py not found in $INSTALL_DIR" && exit 1)'
+ExecStartPre=/bin/sh -c 'test -d "$INSTALL_DIR/venv" || (echo "Virtual environment not found in $INSTALL_DIR/venv" && exit 1)'
 ExecStartPre=/bin/sh -c '$INSTALL_DIR/venv/bin/python3 -c "import flask; print(\"Flask version:\", flask.__version__)"'
-ExecStart=$INSTALL_DIR/venv/bin/python3 -u $INSTALL_DIR/app.py
+
+# Run the app through the wrapper script
+ExecStart=$INSTALL_DIR/run_app.sh
+
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -207,14 +234,17 @@ export FLASK_ENV="development"
 export DEBUG=1
 
 cd "$INSTALL_DIR"
-exec "$INSTALL_DIR/venv/bin/python3" -u "$INSTALL_DIR/app.py"
+
+# Print debug info
+echo "Current directory: \$(pwd)"
+echo "Python path: \$(which python3)"
+echo "Flask path: \$(python3 -c 'import flask; print(flask.__file__)')"
+
+exec "$INSTALL_DIR/venv/bin/python3" -u "$INSTALL_DIR/app.py" 2>&1
 EOL
 
     chmod 755 "$WRAPPER_SCRIPT"
     chown "$ACTUAL_USER:$ACTUAL_USER" "$WRAPPER_SCRIPT"
-
-    # Update service to use wrapper script
-    sed -i "s|ExecStart=.*|ExecStart=$WRAPPER_SCRIPT|" "$SERVICE_FILE"
 
     # Set correct permissions
     echo "Setting permissions..."
