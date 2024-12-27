@@ -138,10 +138,11 @@ EOL
     # Create the Flask application
     echo "Creating Flask application..."
     cat > "$INSTALL_DIR/app.py" << 'EOL'
-from flask import Flask, send_from_directory, render_template, request, jsonify
+from flask import Flask, send_from_directory, render_template, request, jsonify, redirect, url_for
 import os
 import psutil
 from pathlib import Path
+import datetime
 
 app = Flask(__name__)
 
@@ -150,37 +151,135 @@ BASE_DIR = os.getenv('PI_FILE_SERVER_BASE_DIR', os.path.expanduser('~/Documents'
 PORT = int(os.getenv('PI_FILE_SERVER_PORT', '8000'))
 DEBUG = os.getenv('DEBUG', '0') == '1'
 
+def get_directory_contents(path):
+    """Get contents of a directory with file information"""
+    contents = []
+    try:
+        for item in sorted(os.listdir(path)):
+            item_path = os.path.join(path, item)
+            try:
+                stat = os.stat(item_path)
+                is_dir = os.path.isdir(item_path)
+                contents.append({
+                    'name': item,
+                    'path': os.path.relpath(item_path, BASE_DIR),
+                    'is_dir': is_dir,
+                    'size': stat.st_size if not is_dir else None,
+                    'modified': datetime.datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                })
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return contents
+
+def format_size(size):
+    """Format size in bytes to human readable format"""
+    if size is None:
+        return '-'
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+@app.template_filter('format_size')
+def format_size_filter(size):
+    return format_size(size)
+
 @app.route('/')
-def index():
-    """Serve the main page"""
+@app.route('/<path:subpath>')
+def index(subpath=''):
+    """Serve the main page or list directory contents"""
+    full_path = os.path.join(BASE_DIR, subpath)
+    
+    # Security check - ensure path is within BASE_DIR
+    if not os.path.abspath(full_path).startswith(os.path.abspath(BASE_DIR)):
+        return "Access denied", 403
+    
+    if os.path.isfile(full_path):
+        return send_from_directory(BASE_DIR, subpath)
+    
+    # Get directory contents
+    contents = get_directory_contents(full_path)
+    parent = os.path.relpath(os.path.dirname(full_path), BASE_DIR) if subpath else None
+    
     return '''
     <!DOCTYPE html>
     <html>
     <head>
         <title>Pi File Server</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
+            body { 
+                font-family: Arial, sans-serif; 
+                margin: 40px auto;
+                max-width: 1200px;
+                padding: 0 20px;
+            }
             h1 { color: #333; }
-            .status { margin: 20px 0; padding: 10px; background: #f0f0f0; }
+            .status { 
+                margin: 20px 0; 
+                padding: 15px;
+                background: #f5f5f5;
+                border-radius: 5px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
+            th, td {
+                padding: 12px;
+                text-align: left;
+                border-bottom: 1px solid #ddd;
+            }
+            th {
+                background-color: #f8f8f8;
+                font-weight: bold;
+            }
+            tr:hover {
+                background-color: #f5f5f5;
+            }
+            a {
+                color: #0066cc;
+                text-decoration: none;
+            }
+            a:hover {
+                text-decoration: underline;
+            }
+            .parent-link {
+                margin-bottom: 20px;
+                display: block;
+            }
+            .icon {
+                margin-right: 5px;
+            }
         </style>
     </head>
     <body>
         <h1>Pi File Server</h1>
         <div class="status">
             <p>Server is running!</p>
-            <p>Serving files from: ''' + BASE_DIR + '''</p>
+            <p>Current directory: ''' + (f'/{subpath}' if subpath else '/') + '''</p>
         </div>
+        ''' + (f'<a href="/{parent if parent else ""}" class="parent-link">⬆️ Parent Directory</a>' if parent is not None else '') + '''
+        <table>
+            <tr>
+                <th>Name</th>
+                <th>Size</th>
+                <th>Modified</th>
+            </tr>
+            ''' + '\n'.join(f'''
+            <tr>
+                <td><a href="/{item['path']}">{"📁" if item['is_dir'] else "📄"} {item['name']}</a></td>
+                <td>{format_size(item['size'])}</td>
+                <td>{item['modified']}</td>
+            </tr>
+            ''' for item in contents) + '''
+        </table>
     </body>
     </html>
     '''
-
-@app.route('/files/<path:filepath>')
-def serve_file(filepath):
-    """Serve a file from the base directory"""
-    try:
-        return send_from_directory(BASE_DIR, filepath)
-    except Exception as e:
-        return str(e), 404
 
 @app.route('/status')
 def status():
@@ -207,26 +306,6 @@ EOL
     # Set correct permissions for app.py
     chown "$ACTUAL_USER:$ACTUAL_USER" "$INSTALL_DIR/app.py"
     chmod 644 "$INSTALL_DIR/app.py"
-
-    # Create test script to verify Python environment
-    TEST_SCRIPT="$INSTALL_DIR/test_env.py"
-    cat > "$TEST_SCRIPT" << 'EOL'
-import sys
-import os
-
-print("Python executable:", sys.executable)
-print("Python version:", sys.version)
-print("PYTHONPATH:", os.environ.get('PYTHONPATH'))
-print("Working directory:", os.getcwd())
-try:
-    import flask
-    print("Flask version:", flask.__version__)
-except ImportError as e:
-    print("Error importing Flask:", e)
-EOL
-
-    chown "$ACTUAL_USER:$ACTUAL_USER" "$TEST_SCRIPT"
-    chmod 755 "$TEST_SCRIPT"
 
     # Set up systemd service for the user
     echo "Setting up systemd user service..."
@@ -256,7 +335,7 @@ ExecStartPre=/bin/sh -c 'echo "Working directory: \$(pwd)"'
 ExecStartPre=/bin/sh -c 'echo "Directory contents:" && ls -la'
 ExecStartPre=/bin/sh -c 'test -f "$INSTALL_DIR/app.py" || (echo "app.py not found in $INSTALL_DIR" && exit 1)'
 ExecStartPre=/bin/sh -c 'test -d "$INSTALL_DIR/venv" || (echo "Virtual environment not found in $INSTALL_DIR/venv" && exit 1)'
-ExecStartPre=/bin/sh -c '$INSTALL_DIR/venv/bin/python3 -c "import flask; from importlib.metadata import version; print(\"Flask version:\", version(\"flask\"))"'
+ExecStartPre=/bin/sh -c '$INSTALL_DIR/venv/bin/python3 -c "from importlib.metadata import version; print(\"Flask version:\", version(\"flask\"))"'
 
 # Run the app
 ExecStart=$INSTALL_DIR/venv/bin/python3 -u $INSTALL_DIR/app.py
