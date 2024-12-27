@@ -23,153 +23,75 @@ A modern web-based file server for Raspberry Pi that allows you to browse, uploa
 
 ## Installation
 
-1. Clone the repository:
+1. Install required system packages (on Raspberry Pi OS):
+```bash
+sudo apt update
+sudo apt install -y python3-venv git
+```
+
+2. Clone the repository:
 ```bash
 git clone https://github.com/PeakeElectronicInnovation/PiWebFileServer.git
 cd PiWebFileServer
 ```
 
-2. Run the installation script:
-```bash
-sudo bash install.sh
-```
-
-During installation, you'll be prompted to:
-- Set the base directory for file storage (default: /var/lib/pifileserver)
-- Confirm your selection
-
-The server will be installed and started automatically. Access it at:
-- http://localhost:8000 (default)
-- http://your-pi-ip:8000
-
-## Uninstallation
-
-To remove Pi File Server:
-```bash
-sudo bash install.sh uninstall
-```
-
-This will:
-- Stop and disable the service
-- Remove application files
-- Remove configuration files
-- Keep your data directory intact
-
-To completely remove everything, including your data, manually delete your configured data directory after uninstalling.
-
-## Service Management
-
-The server runs as a systemd service. Here are common commands:
-
-```bash
-# Check service status
-sudo systemctl status pifileserver
-
-# View logs
-sudo journalctl -u pifileserver
-
-# Stop service
-sudo systemctl stop pifileserver
-
-# Start service
-sudo systemctl start pifileserver
-
-# Restart service
-sudo systemctl restart pifileserver
-```
-
-## Configuration
-
-The configuration file is located at `/etc/pifileserver.env`. Edit this file to change:
-- Base directory for file storage
-- Port number
-- SSL certificates (for HTTPS)
-
-After changing the configuration, restart the service:
-```bash
-sudo systemctl restart pifileserver
-```
-
-### Default Settings
-- Base Directory: `/var/lib/pifileserver`
-- Port: 8000
-- Service User: pifileserver
-
-### HTTPS Configuration
-
-To enable HTTPS:
-1. Place your SSL certificates in a secure location
-2. Edit `/etc/pifileserver.env`:
-```bash
-PI_FILE_SERVER_SSL_CERT=/path/to/cert.pem
-PI_FILE_SERVER_SSL_KEY=/path/to/key.pem
-```
-3. Restart the service
-
-## Manual Installation
-
-If you prefer to install manually or the installation script doesn't work for your system:
-
-1. Install system dependencies:
-```bash
-sudo apt-get update
-sudo apt-get install python3-venv python3-pip
-```
-
-2. Create a virtual environment:
+3. Create and activate a Python virtual environment:
 ```bash
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Linux/Raspberry Pi
 ```
 
-3. Install Python dependencies:
+4. Install the required Python packages:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Configure environment variables:
+5. (Optional) Configure environment variables:
+
+For Linux/Mac:
 ```bash
-export PI_FILE_SERVER_BASE_DIR=/path/to/files
+# Set environment variables before running the app
+export PI_FILE_SERVER_BASE_DIR=/path/to/shared/files
 export PI_FILE_SERVER_PORT=8000
 ```
 
-5. Run the application:
+Or create a `.env` file in the project directory:
+```bash
+PI_FILE_SERVER_BASE_DIR=/path/to/shared/files
+PI_FILE_SERVER_PORT=8000
+```
+
+Note: Environment variables must be set BEFORE running the application. You can verify they are set correctly:
+- Linux: `echo $PI_FILE_SERVER_BASE_DIR`
+
+6. Run the application:
 ```bash
 python app.py
 ```
 
-## Troubleshooting
+7. Access the web interface:
+   - Default development URL: `http://[your-pi-ip]:8000`
+   - For production with HTTP: `http://[your-pi-ip]` (requires sudo or proper permissions)
+   - For production with HTTPS: `https://[your-pi-ip]` (requires sudo or proper permissions)
+   - Replace `[your-pi-ip]` with your Raspberry Pi's IP address
+   - The IP address is shown in the console when you start the server
 
-### Permission Issues
-- Ensure the `pifileserver` user has write access to the base directory
-- Check systemd service logs: `sudo journalctl -u pifileserver`
-- Verify file permissions: `ls -l /var/lib/pifileserver`
+Note: For production use on port 80 (HTTP) or 443 (HTTPS), you'll need root privileges:
+```bash
+sudo python app.py
+```
 
-### Port Access
-- Default port 8000 doesn't require root privileges
-- For ports 80/443, see [Running on Port 80/443 Without Sudo](#running-on-port-80443-without-sudo)
+For development, the default port 8000 can be used without sudo.
 
-### Service Won't Start
-1. Check service status: `sudo systemctl status pifileserver`
-2. Verify log output: `sudo journalctl -u pifileserver -n 50`
-3. Check file permissions: `ls -l /etc/pifileserver.env`
+## Configuration
 
-## Security Considerations
+The server can be configured using environment variables:
 
-1. File Access:
-   - The service runs as `pifileserver` user with limited permissions
-   - Only files within the base directory are accessible
-   - Path traversal protection is enabled
-
-2. Network Access:
-   - Server listens on all interfaces by default
-   - Use a firewall to restrict access if needed
-   - Enable HTTPS for secure file transfers
-
-3. Authentication:
-   - Currently no authentication system
-   - Use reverse proxy (nginx/apache) for basic auth
-   - Consider running on internal network only
+- `PI_FILE_SERVER_BASE_DIR`: Base directory for file operations (default: user's home directory)
+- `PI_FILE_SERVER_PORT`: Port to run the server on (default: 8000)
+- `PI_FILE_SERVER_DOMAIN`: Optional domain name
+- `PI_FILE_SERVER_SSL_CERT`: Path to SSL certificate (optional)
+- `PI_FILE_SERVER_SSL_KEY`: Path to SSL private key (optional)
 
 ## SSL Configuration (Optional)
 
