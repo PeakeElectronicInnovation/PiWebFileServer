@@ -135,6 +135,79 @@ PI_FILE_SERVER_PORT=8000
 #PI_FILE_SERVER_SSL_KEY=/path/to/key.pem
 EOL
 
+    # Create the Flask application
+    echo "Creating Flask application..."
+    cat > "$INSTALL_DIR/app.py" << 'EOL'
+from flask import Flask, send_from_directory, render_template, request, jsonify
+import os
+import psutil
+from pathlib import Path
+
+app = Flask(__name__)
+
+# Load configuration from environment variables
+BASE_DIR = os.getenv('PI_FILE_SERVER_BASE_DIR', os.path.expanduser('~/Documents'))
+PORT = int(os.getenv('PI_FILE_SERVER_PORT', '8000'))
+DEBUG = os.getenv('DEBUG', '0') == '1'
+
+@app.route('/')
+def index():
+    """Serve the main page"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Pi File Server</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            h1 { color: #333; }
+            .status { margin: 20px 0; padding: 10px; background: #f0f0f0; }
+        </style>
+    </head>
+    <body>
+        <h1>Pi File Server</h1>
+        <div class="status">
+            <p>Server is running!</p>
+            <p>Serving files from: ''' + BASE_DIR + '''</p>
+        </div>
+    </body>
+    </html>
+    '''
+
+@app.route('/files/<path:filepath>')
+def serve_file(filepath):
+    """Serve a file from the base directory"""
+    try:
+        return send_from_directory(BASE_DIR, filepath)
+    except Exception as e:
+        return str(e), 404
+
+@app.route('/status')
+def status():
+    """Return server status information"""
+    return jsonify({
+        'status': 'running',
+        'base_dir': BASE_DIR,
+        'disk_usage': psutil.disk_usage(BASE_DIR)._asdict(),
+        'memory_usage': psutil.virtual_memory()._asdict()
+    })
+
+if __name__ == '__main__':
+    # Ensure base directory exists
+    Path(BASE_DIR).mkdir(parents=True, exist_ok=True)
+    
+    # Start the Flask application
+    app.run(
+        host='0.0.0.0',
+        port=PORT,
+        debug=DEBUG
+    )
+EOL
+
+    # Set correct permissions for app.py
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$INSTALL_DIR/app.py"
+    chmod 644 "$INSTALL_DIR/app.py"
+
     # Create test script to verify Python environment
     TEST_SCRIPT="$INSTALL_DIR/test_env.py"
     cat > "$TEST_SCRIPT" << 'EOL'
