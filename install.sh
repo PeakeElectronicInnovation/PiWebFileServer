@@ -135,6 +135,35 @@ PI_FILE_SERVER_PORT=8000
 #PI_FILE_SERVER_SSL_KEY=/path/to/key.pem
 EOL
 
+    # Create startup script in user's home directory
+    STARTUP_SCRIPT="$ACTUAL_HOME/.local/bin/start_pifileserver.sh"
+    mkdir -p "$(dirname "$STARTUP_SCRIPT")"
+    
+    cat > "$STARTUP_SCRIPT" << EOL
+#!/bin/bash
+export XDG_RUNTIME_DIR="/run/user/\$(id -u)"
+export PYTHONPATH="$INSTALL_DIR"
+export VIRTUAL_ENV="$INSTALL_DIR/venv"
+export PATH="$INSTALL_DIR/venv/bin:\$PATH"
+
+echo "Testing Python environment..."
+"$INSTALL_DIR/venv/bin/python3" "$INSTALL_DIR/test_env.py"
+
+echo "Starting service..."
+systemctl --user daemon-reload
+sleep 2
+mkdir -p ~/.config/systemd/user/default.target.wants
+ln -sf ~/.config/systemd/user/pifileserver.service ~/.config/systemd/user/default.target.wants/pifileserver.service
+systemctl --user enable pifileserver
+sleep 2
+systemctl --user start pifileserver
+sleep 2
+echo "Service status:"
+systemctl --user status pifileserver
+echo "Service logs:"
+journalctl --user -u pifileserver --no-pager -n 50
+EOL
+
     # Set up systemd service for the user
     echo "Setting up systemd user service..."
     mkdir -p "$ACTUAL_HOME/.config/systemd/user"
@@ -150,10 +179,13 @@ Environment="PATH=$INSTALL_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin
 Environment="VIRTUAL_ENV=$INSTALL_DIR/venv"
 Environment="PYTHONUNBUFFERED=1"
 Environment="DEBUG=1"
+Environment="FLASK_APP=$INSTALL_DIR/app.py"
+Environment="FLASK_ENV=development"
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$INSTALL_DIR
-ExecStartPre=/bin/sh -c 'echo "Starting Pi File Server in $(pwd) with Python: $(/usr/bin/which python3)"'
-ExecStart=/bin/sh -c 'echo "Environment:" && env && echo "Starting app..." && $INSTALL_DIR/venv/bin/python3 -u $INSTALL_DIR/app.py'
+ExecStartPre=/bin/sh -c 'echo "Starting Pi File Server in \$(pwd)"'
+ExecStartPre=/bin/sh -c '$INSTALL_DIR/venv/bin/python3 -c "import flask; print(\"Flask version:\", flask.__version__)"'
+ExecStart=$INSTALL_DIR/venv/bin/python3 -u $INSTALL_DIR/app.py
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -162,6 +194,27 @@ StandardError=journal
 [Install]
 WantedBy=default.target
 EOL
+
+    # Create a wrapper script for the app
+    WRAPPER_SCRIPT="$INSTALL_DIR/run_app.sh"
+    cat > "$WRAPPER_SCRIPT" << EOL
+#!/bin/bash
+export PYTHONPATH="$INSTALL_DIR"
+export VIRTUAL_ENV="$INSTALL_DIR/venv"
+export PATH="$INSTALL_DIR/venv/bin:\$PATH"
+export FLASK_APP="$INSTALL_DIR/app.py"
+export FLASK_ENV="development"
+export DEBUG=1
+
+cd "$INSTALL_DIR"
+exec "$INSTALL_DIR/venv/bin/python3" -u "$INSTALL_DIR/app.py"
+EOL
+
+    chmod 755 "$WRAPPER_SCRIPT"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$WRAPPER_SCRIPT"
+
+    # Update service to use wrapper script
+    sed -i "s|ExecStart=.*|ExecStart=$WRAPPER_SCRIPT|" "$SERVICE_FILE"
 
     # Set correct permissions
     echo "Setting permissions..."
@@ -180,62 +233,6 @@ EOL
     # Enable lingering for the user (allows user services to run without login)
     echo "Enabling user service capabilities..."
     loginctl enable-linger "$ACTUAL_USER"
-
-    # Export XDG runtime directory
-    export XDG_RUNTIME_DIR="/run/user/$(id -u $ACTUAL_USER)"
-
-    # Create a test script to verify Python environment
-    TEST_SCRIPT="$INSTALL_DIR/test_env.py"
-    cat > "$TEST_SCRIPT" << 'EOF'
-import sys
-import os
-
-print("Python executable:", sys.executable)
-print("Python version:", sys.version)
-print("PYTHONPATH:", os.environ.get('PYTHONPATH'))
-print("Working directory:", os.getcwd())
-try:
-    import flask
-    print("Flask version:", flask.__version__)
-except ImportError as e:
-    print("Error importing Flask:", e)
-EOF
-
-    chown "$ACTUAL_USER:$ACTUAL_USER" "$TEST_SCRIPT"
-    chmod 755 "$TEST_SCRIPT"
-
-    # Reload systemd and start service (as the actual user)
-    echo "Starting service..."
-    
-    # Create startup script in user's home directory
-    STARTUP_SCRIPT="$ACTUAL_HOME/.local/bin/start_pifileserver.sh"
-    mkdir -p "$(dirname "$STARTUP_SCRIPT")"
-    
-    cat > "$STARTUP_SCRIPT" << 'EOF'
-#!/bin/bash
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-
-echo "Testing Python environment..."
-$VIRTUAL_ENV/bin/python3 test_env.py
-
-echo "Starting service..."
-systemctl --user daemon-reload
-sleep 2
-mkdir -p ~/.config/systemd/user/default.target.wants
-ln -sf ~/.config/systemd/user/pifileserver.service ~/.config/systemd/user/default.target.wants/pifileserver.service
-systemctl --user enable pifileserver
-sleep 2
-systemctl --user start pifileserver
-sleep 2
-echo "Service status:"
-systemctl --user status pifileserver
-echo "Service logs:"
-journalctl --user -u pifileserver --no-pager -n 50
-EOF
-
-    # Set correct permissions
-    chown "$ACTUAL_USER:$ACTUAL_USER" "$STARTUP_SCRIPT"
-    chmod 755 "$STARTUP_SCRIPT"
 
     # Run the script as the actual user
     sudo -u "$ACTUAL_USER" bash -c "cd '$INSTALL_DIR' && '$STARTUP_SCRIPT'"
