@@ -24,7 +24,7 @@ ExecStartPre=/bin/chown -R admin:admin /home/admin/PiWebFileServer/ssl
 ExecStartPre=/bin/chmod 755 /home/admin
 ExecStartPre=/bin/chmod 700 /home/admin/PiWebFileServer/ssl
 
-ExecStart=/home/admin/PiWebFileServer/venv/bin/python3 /home/admin/PiWebFileServer/app.py
+ExecStart=/home/admin/PiWebFileServer/venv/bin/python /home/admin/PiWebFileServer/app.py
 Restart=always
 RestartSec=5
 
