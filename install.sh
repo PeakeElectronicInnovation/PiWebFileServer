@@ -148,11 +148,14 @@ Type=simple
 Environment="PYTHONPATH=$INSTALL_DIR"
 Environment="PATH=$INSTALL_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="VIRTUAL_ENV=$INSTALL_DIR/venv"
+Environment="PYTHONUNBUFFERED=1"
+Environment="DEBUG=1"
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/venv/bin/python3 -u $INSTALL_DIR/app.py
-Restart=always
-RestartSec=3
+ExecStartPre=/bin/sh -c 'echo "Starting Pi File Server in $(pwd) with Python: $(/usr/bin/which python3)"'
+ExecStart=/bin/sh -c 'echo "Environment:" && env && echo "Starting app..." && $INSTALL_DIR/venv/bin/python3 -u $INSTALL_DIR/app.py'
+Restart=on-failure
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
@@ -181,6 +184,26 @@ EOL
     # Export XDG runtime directory
     export XDG_RUNTIME_DIR="/run/user/$(id -u $ACTUAL_USER)"
 
+    # Create a test script to verify Python environment
+    TEST_SCRIPT="$INSTALL_DIR/test_env.py"
+    cat > "$TEST_SCRIPT" << 'EOF'
+import sys
+import os
+
+print("Python executable:", sys.executable)
+print("Python version:", sys.version)
+print("PYTHONPATH:", os.environ.get('PYTHONPATH'))
+print("Working directory:", os.getcwd())
+try:
+    import flask
+    print("Flask version:", flask.__version__)
+except ImportError as e:
+    print("Error importing Flask:", e)
+EOF
+
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$TEST_SCRIPT"
+    chmod 755 "$TEST_SCRIPT"
+
     # Reload systemd and start service (as the actual user)
     echo "Starting service..."
     
@@ -191,6 +214,11 @@ EOL
     cat > "$STARTUP_SCRIPT" << 'EOF'
 #!/bin/bash
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+
+echo "Testing Python environment..."
+$VIRTUAL_ENV/bin/python3 test_env.py
+
+echo "Starting service..."
 systemctl --user daemon-reload
 sleep 2
 mkdir -p ~/.config/systemd/user/default.target.wants
@@ -199,8 +227,10 @@ systemctl --user enable pifileserver
 sleep 2
 systemctl --user start pifileserver
 sleep 2
+echo "Service status:"
 systemctl --user status pifileserver
-journalctl --user -u pifileserver --no-pager -n 20
+echo "Service logs:"
+journalctl --user -u pifileserver --no-pager -n 50
 EOF
 
     # Set correct permissions
@@ -208,7 +238,7 @@ EOF
     chmod 755 "$STARTUP_SCRIPT"
 
     # Run the script as the actual user
-    sudo -u "$ACTUAL_USER" "$STARTUP_SCRIPT"
+    sudo -u "$ACTUAL_USER" bash -c "cd '$INSTALL_DIR' && '$STARTUP_SCRIPT'"
 
     echo "Installation complete!"
     echo "The Pi File Server is now running at http://localhost:8000"
@@ -225,6 +255,9 @@ EOF
         echo "Please check the status with: systemctl --user status pifileserver"
         echo "And view logs with: journalctl --user -u pifileserver"
         echo "You can also try starting it manually with: systemctl --user start pifileserver"
+        echo ""
+        echo "Debug information:"
+        sudo -u "$ACTUAL_USER" bash -c "cd '$INSTALL_DIR' && $INSTALL_DIR/venv/bin/python3 test_env.py"
     fi
 }
 
