@@ -228,41 +228,6 @@ EOL
     chown "$ACTUAL_USER:$ACTUAL_USER" "$TEST_SCRIPT"
     chmod 755 "$TEST_SCRIPT"
 
-    # Create a wrapper script for the app
-    WRAPPER_SCRIPT="$INSTALL_DIR/run_app.sh"
-    cat > "$WRAPPER_SCRIPT" << EOL
-#!/bin/bash
-set -x  # Enable debug output
-
-export PYTHONPATH="$INSTALL_DIR"
-export VIRTUAL_ENV="$INSTALL_DIR/venv"
-export PATH="$INSTALL_DIR/venv/bin:\$PATH"
-export FLASK_APP="$INSTALL_DIR/app.py"
-export FLASK_ENV="development"
-export DEBUG=1
-export PI_FILE_SERVER_BASE_DIR="$BASE_DIR"
-export PI_FILE_SERVER_PORT=8000
-
-cd "$INSTALL_DIR"
-
-# Print debug info
-echo "=== Environment ==="
-env | sort
-echo "=== Directory Contents ==="
-ls -la
-echo "=== Python Info ==="
-which python3
-python3 -V
-echo "=== Flask Info ==="
-python3 -c 'import flask; print("Flask path:", flask.__file__)'
-echo "=== Starting App ==="
-
-exec "$INSTALL_DIR/venv/bin/python3" -u "$INSTALL_DIR/app.py" 2>&1
-EOL
-
-    chmod 755 "$WRAPPER_SCRIPT"
-    chown "$ACTUAL_USER:$ACTUAL_USER" "$WRAPPER_SCRIPT"
-
     # Set up systemd service for the user
     echo "Setting up systemd user service..."
     mkdir -p "$ACTUAL_HOME/.config/systemd/user"
@@ -291,10 +256,10 @@ ExecStartPre=/bin/sh -c 'echo "Working directory: \$(pwd)"'
 ExecStartPre=/bin/sh -c 'echo "Directory contents:" && ls -la'
 ExecStartPre=/bin/sh -c 'test -f "$INSTALL_DIR/app.py" || (echo "app.py not found in $INSTALL_DIR" && exit 1)'
 ExecStartPre=/bin/sh -c 'test -d "$INSTALL_DIR/venv" || (echo "Virtual environment not found in $INSTALL_DIR/venv" && exit 1)'
-ExecStartPre=/bin/sh -c '$INSTALL_DIR/venv/bin/python3 -c "import flask; print(\"Flask version:\", flask.__version__)"'
+ExecStartPre=/bin/sh -c '$INSTALL_DIR/venv/bin/python3 -c "import flask; from importlib.metadata import version; print(\"Flask version:\", version(\"flask\"))"'
 
-# Run the app through the wrapper script
-ExecStart=/bin/bash -x $INSTALL_DIR/run_app.sh
+# Run the app
+ExecStart=$INSTALL_DIR/venv/bin/python3 -u $INSTALL_DIR/app.py
 
 Restart=on-failure
 RestartSec=5
@@ -304,6 +269,27 @@ StandardError=journal
 [Install]
 WantedBy=default.target
 EOL
+
+    # Create a test script to run the app directly
+    TEST_SCRIPT="$INSTALL_DIR/test_app.sh"
+    cat > "$TEST_SCRIPT" << EOL
+#!/bin/bash
+export PYTHONPATH="$INSTALL_DIR"
+export VIRTUAL_ENV="$INSTALL_DIR/venv"
+export PATH="$INSTALL_DIR/venv/bin:\$PATH"
+export FLASK_APP="$INSTALL_DIR/app.py"
+export FLASK_ENV="development"
+export DEBUG=1
+export PI_FILE_SERVER_BASE_DIR="$BASE_DIR"
+export PI_FILE_SERVER_PORT=8000
+
+cd "$INSTALL_DIR"
+echo "Running app directly..."
+exec "$INSTALL_DIR/venv/bin/python3" -u "$INSTALL_DIR/app.py"
+EOL
+
+    chmod 755 "$TEST_SCRIPT"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$TEST_SCRIPT"
 
     # Create startup script in user's home directory
     STARTUP_SCRIPT="$ACTUAL_HOME/.local/bin/start_pifileserver.sh"
@@ -327,13 +313,18 @@ ln -sf ~/.config/systemd/user/pifileserver.service ~/.config/systemd/user/defaul
 systemctl --user enable pifileserver
 sleep 2
 systemctl --user start pifileserver
-sleep 2
+sleep 5  # Give it more time to start
+
 echo "Service status:"
 systemctl --user status pifileserver
 echo "Service logs:"
 journalctl --user -u pifileserver --no-pager -n 50
-echo "Checking service with curl:"
-curl -v http://localhost:8000/ || echo "Service not responding"
+
+if ! systemctl --user is-active pifileserver >/dev/null 2>&1; then
+    echo ""
+    echo "Service failed to start. Trying to run app directly for debugging..."
+    "$INSTALL_DIR/test_app.sh"
+fi
 EOL
 
     # Set correct permissions
